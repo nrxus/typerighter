@@ -1,52 +1,92 @@
-use rand::seq::IteratorRandom as _;
-use std::io::{self, Write as _};
-use termion::{event::Key, input::TermRead as _, raw::IntoRawMode as _};
+use rand::{rngs::ThreadRng, seq::IteratorRandom as _};
+use std::{
+    io::{self, Stdout, Write as _},
+    time::Instant,
+};
+use termion::{event::Key, input::TermRead as _, raw::IntoRawMode as _, raw::RawTerminal};
 
 fn main() {
-    let mut stdout = io::stdout().into_raw_mode().unwrap();
+    print!(
+        "Type the character being presented. Press <Esc> when done\n\n{}",
+        termion::cursor::Hide,
+    );
 
-    let row = ['a', 's', 'd', 'f', 'g', 'h', 'j', 'k', 'l'];
-    let mut rng = rand::thread_rng();
+    let mut attempter = Attempter::new("arenbgsito".to_string());
 
-    write!(
-        stdout,
-        "{}{}Type the character being presented. Press <Esc> when done\n\n{}",
-        termion::clear::All,
-        termion::cursor::Goto(1, 1),
-        termion::cursor::Goto(1, 3),
-    )
-    .expect("bug: write");
+    let mut attempts = 0;
+    let start = Instant::now();
 
-    stdout.flush().expect("bug: flush");
-
-    'outer: loop {
-        let stdin = io::stdin();
-        let c = *row.iter().choose(&mut rng).expect("bug: empty home row");
-        write!(
-            stdout,
-            "{}{}{}",
-            termion::cursor::Goto(1, 3),
-            termion::clear::CurrentLine,
-            c
-        )
-        .expect("bug: write");
-        stdout.flush().expect("bug: flush");
-
-        'inner: for k in stdin.keys() {
-            match k.unwrap() {
-                Key::Esc => break 'outer,
-                Key::Char(typed) => {
-                    if typed == c {
-                        stdout.flush().expect("bug: flush");
-                        break 'inner;
-                    }
-                }
-                _ => {}
+    for typed in 0.. {
+        match attempter.run() {
+            Result::Ok(a) => {
+                attempts += a;
             }
+            Result::Err(_) => {
+                print!(
+                    "{show}{up}{clear}",
+                    show = termion::cursor::Show,
+                    clear = termion::clear::CurrentLine,
+                    up = termion::cursor::Up(2),
+                );
 
-            stdout.flush().expect("bug: flush");
+                if attempts == 0 {
+                    println!("No results");
+                    break;
+                }
+
+                let duration = Instant::now() - start;
+                let minutes = (duration.as_millis() as f64) / (60.0 * 1000.0);
+                let wpm = (typed as f64 / 5.0) / minutes;
+                let accuracy = (typed * 100) / attempts;
+
+                println!(
+                    "{bold}WPM{reset}: {wpm:.2}\n\r{bold}Accuracy{reset}: {accuracy}%",
+                    bold = termion::style::Bold,
+                    reset = termion::style::Reset,
+                    wpm = wpm,
+                    accuracy = accuracy
+                );
+
+                break;
+            }
+        }
+    }
+}
+
+struct Attempter {
+    stdout: RawTerminal<Stdout>,
+    rng: ThreadRng,
+    options: String,
+}
+
+impl Attempter {
+    fn new(options: String) -> Self {
+        Attempter {
+            stdout: io::stdout().into_raw_mode().unwrap(),
+            options,
+            rng: rand::thread_rng(),
         }
     }
 
-    write!(stdout, "{}", termion::cursor::Show).unwrap();
+    fn run(&mut self) -> Result<usize, ()> {
+        let goal = self.options.chars().choose(&mut self.rng).unwrap();
+
+        write!(self.stdout, "{}\r", goal).unwrap();
+        self.stdout.flush().expect("bug: flush");
+
+        for (attempts, k) in io::stdin().keys().enumerate() {
+            match k.unwrap() {
+                Key::Esc => {
+                    write!(self.stdout, "{clear}", clear = termion::clear::CurrentLine)
+                        .expect("bug");
+                    self.stdout.flush().expect("bug: flush");
+                    return Result::Err(());
+                }
+                Key::Char(k) if k == goal => return Result::Ok(attempts + 1),
+                _ => {}
+            }
+        }
+
+        unreachable!("bug: reached outside of key-event loop")
+    }
 }
