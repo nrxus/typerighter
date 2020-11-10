@@ -16,41 +16,39 @@ fn main() {
     let mut attempts = 0;
     let start = Instant::now();
 
-    for typed in 0.. {
+    println!(
+        "\r{bold}WPM{reset}: ----\t{bold}Accuracy{reset}: ----",
+        bold = termion::style::Bold,
+        reset = termion::style::Reset,
+    );
+
+    for typed in 1.. {
         match attempter.run() {
-            Result::Ok(a) => {
-                attempts += a;
-            }
-            Result::Err(_) => {
-                print!(
-                    "{show}{up}{clear}",
-                    show = termion::cursor::Show,
-                    clear = termion::clear::CurrentLine,
-                    up = termion::cursor::Up(2),
-                );
-
-                if attempts == 0 {
-                    println!("No results");
-                    break;
-                }
-
-                let duration = Instant::now() - start;
-                let minutes = (duration.as_millis() as f64) / (60.0 * 1000.0);
-                let wpm = (typed as f64 / 5.0) / minutes;
-                let accuracy = (typed * 100) / attempts;
-
-                println!(
-                    "{bold}WPM{reset}: {wpm:.2}\n\r{bold}Accuracy{reset}: {accuracy}%",
-                    bold = termion::style::Bold,
-                    reset = termion::style::Reset,
-                    wpm = wpm,
-                    accuracy = accuracy
-                );
-
-                break;
-            }
+            Result::Ok(a) => attempts += a,
+            Result::Err(_) => break,
         }
+
+        update_stats(start, typed, attempts);
     }
+}
+
+fn update_stats(start: Instant, typed: usize, attempts: usize) {
+    let typed = typed as f64;
+    let attempts = attempts as f64;
+
+    let duration = Instant::now() - start;
+    let minutes = (duration.as_millis() as f64) / (60_f64 * 1000_f64);
+    let wpm = (typed / 5_f64) / minutes;
+    let accuracy = (typed * 100_f64) / attempts;
+
+    println!(
+        "{clear}\r{bold}WPM{reset}: {wpm:.2}\t{bold}Accuracy{reset}: {accuracy:.2}%",
+        clear = termion::clear::CurrentLine,
+        bold = termion::style::Bold,
+        reset = termion::style::Reset,
+        wpm = wpm,
+        accuracy = accuracy
+    );
 }
 
 struct Attempter {
@@ -71,7 +69,7 @@ impl Attempter {
     fn run(&mut self) -> Result<usize, ()> {
         let goal = self.options.chars().choose(&mut self.rng).unwrap();
 
-        write!(self.stdout, "{}\r", goal).unwrap();
+        write!(self.stdout, "\r{}", goal).unwrap();
         self.stdout.flush().expect("bug: flush");
 
         for (attempts, k) in io::stdin().keys().enumerate() {
@@ -82,7 +80,10 @@ impl Attempter {
                     self.stdout.flush().expect("bug: flush");
                     return Result::Err(());
                 }
-                Key::Char(k) if k == goal => return Result::Ok(attempts + 1),
+                Key::Char(k) if k == goal => {
+                    write!(self.stdout, "{}", termion::cursor::Up(1)).expect("bug");
+                    return Result::Ok(attempts + 1);
+                }
                 _ => {}
             }
         }
