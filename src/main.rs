@@ -6,17 +6,21 @@ use std::{
 use termion::{event::Key, input::TermRead as _, raw::IntoRawMode as _, raw::RawTerminal};
 
 fn main() {
-    print!("Type the character being presented. Press <Esc> when done\n\n",);
+    println!(
+        "{}{}Type the character under the cursor. Press <Esc> when done\n",
+        termion::clear::All,
+        termion::cursor::Goto(1, 1),
+    );
 
-    let mut attempter = Attempter::new("arenbgsito ".to_string());
+    let mut attempter = Attempter::new("aren".to_string());
 
     let mut attempts = 0;
     let start = Instant::now();
 
     println!(
-        "\r{bold}WPM{reset}: ----\t{bold}Accuracy{reset}: ----",
+        "\r{bold}WPM{li}: ----\t{bold}Accuracy{li}: ----",
         bold = termion::style::Bold,
-        reset = termion::style::Reset,
+        li = termion::style::Reset,
     );
 
     for typed in 1.. {
@@ -41,10 +45,10 @@ fn update_stats(start: Instant, typed: usize, attempts: usize) {
     let accuracy = (typed * 100_f64) / attempts;
 
     println!(
-        "{clear}\r{bold}WPM{reset}: {wpm:.2}\t{bold}Accuracy{reset}: {accuracy:.2}%",
+        "{clear}\r{bold}WPM{li}: {wpm:.2}\t{bold}Accuracy{li}: {accuracy:.2}%",
         clear = termion::clear::CurrentLine,
         bold = termion::style::Bold,
-        reset = termion::style::Reset,
+        li = termion::style::Reset,
         wpm = wpm,
         accuracy = accuracy
     );
@@ -82,21 +86,47 @@ impl Attempter {
         self.chunk[self.chunk.len() - 1] = self.options.chars().choose(&mut self.rng).unwrap();
 
         let center = termion::terminal_size().unwrap().0 / 2;
+
         write!(
             self.stdout,
-            "\r{clear}{center}{chunk}{left}",
-            clear = termion::clear::CurrentLine,
+            "\r{clear}{center}{save}{chunk}{left}\n\n
+\r{center_hand}{xx}  {xx}  {lm}.-{lm}.{xx}                   {xx}  {rm}.-{rm}.{xx}
+\r{center_hand}{xx}  {lr}.-{lm}| {lm}|{li}-.                 {ri}.-{rm}| {rm}|{rr}-{rr}.{xx}
+\r{center_hand}{xx}  {lr}| {lr}| {li}|{li} |                 {ri}| {ri}| {rr}|{rr} {rr}|{xx}
+\r{center_hand}{lp}.-{xx}| {xx}| {xx}|{xx} |                 {xx}| {xx}| {xx}|{xx} {xx}|{rp}-.
+\r{center_hand}{lp}| {lp}| {xx}| {xx}|{xx} |                 {xx}| {xx}| {xx}|{xx} {rp}|{rp} |
+\r{center_hand}{xx}| {xx}| {xx}| {xx}|{xx} |-.             .-{xx}| {xx}| {xx}|{xx} {xx}|{xx} |
+\r{center_hand}{xx}| {xx}' {xx}  {xx} {xx} | |             | {xx}| {xx}  {xx} {xx} {xx}`{xx} |
+\r{center_hand}{xx}| {xx}  {xx}  {xx} {xx} | |             | {xx}| {xx}  {xx} {xx} {xx} {xx} |
+\r{center_hand}{xx}| {xx}  {xx}  {xx} {xx}   |             | {xx}  {xx}  {xx} {xx} {xx} {xx} |
+\r{center_hand}{xx}\\{xx}  {xx}  {xx} {xx}    /             \\{xx} {xx}  {xx} {xx} {xx} {xx}   /
+\r{center_hand}{xx} |{xx}  {xx}  {xx} {xx}  |               |{xx}  {xx}  {xx} {xx} {xx} {xx}|
+\r{center_hand}{xx} |{xx}  {xx}  {xx} {xx}  |               |{xx}  {xx}  {xx} {xx} {xx} {xx}|{restore}",
+            clear = termion::clear::AfterCursor,
             chunk = chunk,
             center = termion::cursor::Right(center),
-            left = termion::cursor::Left(self.chunk.len() as u16)
+            center_hand = termion::cursor::Right(center - 18 + (chunk.len() / 2) as u16),
+            left = termion::cursor::Left(self.chunk.len() as u16),
+            lp = termion::color::Fg(termion::color::Cyan),
+            lr = termion::color::Fg(termion::color::Red),
+            lm = termion::color::Fg(termion::color::Blue),
+            li = termion::color::Fg(termion::color::LightRed),
+            ri = termion::color::Fg(termion::color::Yellow),
+            rm = termion::color::Fg(termion::color::LightGreen),
+            rr = termion::color::Fg(termion::color::Green),
+            rp = termion::color::Fg(termion::color::LightBlue),
+            xx = termion::style::Reset,
+            save = termion::cursor::Save,
+            restore = termion::cursor::Restore,
         )
         .unwrap();
+
         self.stdout.flush().expect("bug: flush");
 
         for (attempts, k) in io::stdin().keys().enumerate() {
             match k.unwrap() {
                 Key::Esc => {
-                    write!(self.stdout, "{clear}", clear = termion::clear::CurrentLine)
+                    write!(self.stdout, "{clear}", clear = termion::clear::AfterCursor)
                         .expect("bug");
                     self.stdout.flush().expect("bug: flush");
                     return Result::Err(());
