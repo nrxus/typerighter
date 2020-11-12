@@ -1,0 +1,19 @@
+- name: arensito home row
+  keys:
+    a: left_pinky
+    r: left_ring
+    e: left_middle
+    n: left_index
+    g: left_index
+    b: right_index
+    s: right_index
+    i: right_middle
+    t: right_ring
+    o: right_pinky
+- name: arensito left home row
+  keys:
+    a: left_pinky
+    r: left_ring
+    e: left_middle
+    n: left_index
+    g: left_index

@@ -1,18 +1,24 @@
-use rand::{rngs::ThreadRng, seq::IteratorRandom as _};
+mod practice_set;
+
+use crate::practice_set::PracticeSet;
+use practice_set::Finger;
 use std::{
-    io::{self, Stdout, Write as _},
+    io::{self, Write as _},
     time::Instant,
 };
 use termion::{event::Key, input::TermRead as _, raw::IntoRawMode as _, raw::RawTerminal};
 
 fn main() {
+    print!("{clear}", clear = termion::clear::All);
+
+    let practice_set = PracticeSet::load().expect("failed to load practice set");
+
     println!(
-        "{}{}Type the character under the cursor. Press <Esc> when done\n",
-        termion::clear::All,
+        "{}Type the character under the cursor. Press <Esc> when done\n",
         termion::cursor::Goto(1, 1),
     );
 
-    let mut attempter = Attempter::new("aren".to_string());
+    let mut attempter = Attempter::new(practice_set);
 
     let mut attempts = 0;
     let start = Instant::now();
@@ -55,41 +61,59 @@ fn update_stats(start: Instant, typed: usize, attempts: usize) {
 }
 
 struct Attempter {
-    stdout: RawTerminal<Stdout>,
-    rng: ThreadRng,
-    options: String,
-    chunk: [char; 20],
+    stdout: RawTerminal<io::Stdout>,
+    practice_set: PracticeSet,
+    chunk: Vec<(char, Finger)>,
 }
 
 impl Attempter {
-    fn new(options: String) -> Self {
-        let mut rng = rand::thread_rng();
-        let mut chunk = ['0'; 20];
-        (0..chunk.len()).for_each(|i| {
-            chunk[i] = options.chars().choose(&mut rng).unwrap();
-        });
+    fn new(mut practice_set: PracticeSet) -> Self {
+        let chunk = practice_set.choose_n(20);
 
         Attempter {
-            options,
             chunk,
-            rng,
+            practice_set,
             stdout: io::stdout().into_raw_mode().unwrap(),
         }
     }
 
     fn run(&mut self) -> Result<usize, ()> {
-        let chunk: String = self.chunk.iter().collect();
-        let goal = self.chunk[0];
+        let chunk: String = self.chunk.iter().map(|(c, _)| c).collect();
+        let (goal, finger) = self.chunk[0];
         (1..chunk.len()).for_each(|i| {
             self.chunk[i - 1] = self.chunk[i];
         });
-        self.chunk[self.chunk.len() - 1] = self.options.chars().choose(&mut self.rng).unwrap();
+        let last_index = self.chunk.len() - 1;
+        self.chunk[last_index] = self.practice_set.choose();
 
         let center = termion::terminal_size().unwrap().0 / 2;
 
+        let finger_color = |displayed| {
+            if displayed == finger {
+                termion::color::Fg(termion::color::Red).to_string()
+            } else {
+                termion::style::Reset.to_string()
+            }
+        };
+
+        /*
+            .-.                     .-.
+          .-| |-.                 .-| |-.
+          | | | |                 | | | |
+        .-| | | |                 | | | |-.
+        | | | | |                 | | | | |
+        | | | | |-.             .-| | | | |
+        | '     | |             | |     ` |
+        |       | |             | |       |
+        |         |             |         |
+        \         /             \         /
+         |       |               |       |
+         |       |               |       |
+           */
+
         write!(
             self.stdout,
-            "\r{clear}{center}{save}{chunk}{left}\n\n
+            "\r{clear}{center}{save}{chunk}\n\n
 \r{center_hand}{xx}  {xx}  {lm}.-{lm}.{xx}                   {xx}  {rm}.-{rm}.{xx}
 \r{center_hand}{xx}  {lr}.-{lm}| {lm}|{li}-.                 {ri}.-{rm}| {rm}|{rr}-{rr}.{xx}
 \r{center_hand}{xx}  {lr}| {lr}| {li}|{li} |                 {ri}| {ri}| {rr}|{rr} {rr}|{xx}
@@ -106,15 +130,14 @@ impl Attempter {
             chunk = chunk,
             center = termion::cursor::Right(center),
             center_hand = termion::cursor::Right(center - 18 + (chunk.len() / 2) as u16),
-            left = termion::cursor::Left(self.chunk.len() as u16),
-            lp = termion::color::Fg(termion::color::Cyan),
-            lr = termion::color::Fg(termion::color::Red),
-            lm = termion::color::Fg(termion::color::Blue),
-            li = termion::color::Fg(termion::color::LightRed),
-            ri = termion::color::Fg(termion::color::Yellow),
-            rm = termion::color::Fg(termion::color::LightGreen),
-            rr = termion::color::Fg(termion::color::Green),
-            rp = termion::color::Fg(termion::color::LightBlue),
+            lp = finger_color(Finger::LeftPinky),
+            lr = finger_color(Finger::LeftRing),
+            lm = finger_color(Finger::LeftMiddle),
+            li = finger_color(Finger::LeftIndex),
+            ri = finger_color(Finger::RightIndex),
+            rm = finger_color(Finger::RightMiddle),
+            rr = finger_color(Finger::RightRing),
+            rp = finger_color(Finger::RightPinky),
             xx = termion::style::Reset,
             save = termion::cursor::Save,
             restore = termion::cursor::Restore,
