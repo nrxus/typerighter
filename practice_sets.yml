@@ -4,8 +4,8 @@
     r: left_ring
     e: left_middle
     n: left_index
-    g: left_index
     b: right_index
+    g: left_index
     s: right_index
     i: right_middle
     t: right_ring
@@ -16,4 +16,4 @@
     r: left_ring
     e: left_middle
     n: left_index
-    g: left_index
+    b: left_index
