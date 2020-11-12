@@ -139,8 +139,8 @@ impl Attempter {
             rr = finger_color(Finger::RightRing),
             rp = finger_color(Finger::RightPinky),
             xx = termion::style::Reset,
-            save = termion::cursor::Save,
-            restore = termion::cursor::Restore,
+            save = "\x1B7",
+            restore = "\x1B8",
         )
         .unwrap();
 
