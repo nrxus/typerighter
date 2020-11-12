@@ -9,14 +9,15 @@ use std::{
 use termion::{event::Key, input::TermRead as _, raw::IntoRawMode as _, raw::RawTerminal};
 
 fn main() {
-    print!("{clear}", clear = termion::clear::All);
+    print!(
+        "{clear}{start}",
+        clear = termion::clear::All,
+        start = termion::cursor::Goto(1, 1)
+    );
 
     let practice_set = PracticeSet::load().expect("failed to load practice set");
 
-    println!(
-        "{}Type the character under the cursor. Press <Esc> when done\n",
-        termion::cursor::Goto(1, 1),
-    );
+    println!("Type the characters after the arrow. Press <Esc> when done\n");
 
     let mut attempter = Attempter::new(practice_set);
 
@@ -24,9 +25,10 @@ fn main() {
     let start = Instant::now();
 
     println!(
-        "\r{bold}WPM{li}: ----\t{bold}Accuracy{li}: ----",
+        "{hide}\r{bold}WPM{li}: ----\t{bold}Accuracy{li}: ----",
         bold = termion::style::Bold,
         li = termion::style::Reset,
+        hide = termion::cursor::Hide,
     );
 
     for typed in 1.. {
@@ -38,7 +40,7 @@ fn main() {
         update_stats(start, typed, attempts);
     }
 
-    print!("{}", termion::cursor::Show);
+    print!("{show}", show = termion::cursor::Show);
 }
 
 fn update_stats(start: Instant, typed: usize, attempts: usize) {
@@ -113,7 +115,7 @@ impl Attempter {
 
         write!(
             self.stdout,
-            "\r{clear}{center}{save}{chunk}\n\n
+            "\r{clear}{center}{save}~>{chunk}\n\n
 \r{center_hand}{xx}  {xx}  {lm}.-{lm}.{xx}                   {xx}  {rm}.-{rm}.{xx}
 \r{center_hand}{xx}  {lr}.-{lm}| {lm}|{li}-.                 {ri}.-{rm}| {rm}|{rr}-{rr}.{xx}
 \r{center_hand}{xx}  {lr}| {lr}| {li}|{li} |                 {ri}| {ri}| {rr}|{rr} {rr}|{xx}
@@ -128,7 +130,7 @@ impl Attempter {
 \r{center_hand}{xx} |{xx}  {xx}  {xx} {xx}  |               |{xx}  {xx}  {xx} {xx} {xx} {xx}|{restore}",
             clear = termion::clear::AfterCursor,
             chunk = chunk,
-            center = termion::cursor::Right(center),
+            center = termion::cursor::Right(center - 2),
             center_hand = termion::cursor::Right(center - 18 + (chunk.len() / 2) as u16),
             lp = finger_color(Finger::LeftPinky),
             lr = finger_color(Finger::LeftRing),
@@ -149,8 +151,12 @@ impl Attempter {
         for (attempts, k) in io::stdin().keys().enumerate() {
             match k.unwrap() {
                 Key::Esc => {
-                    write!(self.stdout, "{clear}", clear = termion::clear::AfterCursor)
-                        .expect("bug");
+                    write!(
+                        self.stdout,
+                        "{clear}\r",
+                        clear = termion::clear::AfterCursor,
+                    )
+                    .expect("bug");
                     self.stdout.flush().expect("bug: flush");
                     return Result::Err(());
                 }
