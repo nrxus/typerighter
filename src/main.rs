@@ -17,7 +17,7 @@ fn main() {
 
     let practice_set = PracticeSet::load().expect("failed to load practice set");
 
-    println!("Type the characters after the arrow. Press <Esc> when done\n");
+    println!("Type the characters shown after the pipe. Press <Esc> when done\n");
 
     let mut attempter = Attempter::new(practice_set);
 
@@ -115,7 +115,7 @@ impl Attempter {
 
         write!(
             self.stdout,
-            "\r{clear}{center}{save}~>{chunk}\n\n
+            "\r{clear}{center}{save}|{chunk}\n\n
 \r{center_hand}{xx}  {xx}  {lm}.-{lm}.{xx}                   {xx}  {rm}.-{rm}.{xx}
 \r{center_hand}{xx}  {lr}.-{lm}| {lm}|{li}-.                 {ri}.-{rm}| {rm}|{rr}-{rr}.{xx}
 \r{center_hand}{xx}  {lr}| {lr}| {li}|{li} |                 {ri}| {ri}| {rr}|{rr} {rr}|{xx}
@@ -130,7 +130,7 @@ impl Attempter {
 \r{center_hand}{xx} |{xx}  {xx}  {xx} {xx}  |               |{xx}  {xx}  {xx} {xx} {xx} {xx}|{restore}",
             clear = termion::clear::AfterCursor,
             chunk = chunk,
-            center = termion::cursor::Right(center - 2),
+            center = termion::cursor::Right(center - 1),
             center_hand = termion::cursor::Right(center - 18 + (chunk.len() / 2) as u16),
             lp = finger_color(Finger::LeftPinky),
             lr = finger_color(Finger::LeftRing),
