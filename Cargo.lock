@@ -165,16 +165,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "teaches-typing"
-version = "0.1.0"
-dependencies = [
- "rand",
- "serde",
- "serde_yaml",
- "termion",
-]
-
-[[package]]
 name = "termion"
 version = "1.5.5"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -184,6 +174,16 @@ dependencies = [
  "numtoa",
  "redox_syscall",
  "redox_termios",
+]
+
+[[package]]
+name = "typerighter"
+version = "0.1.0"
+dependencies = [
+ "rand",
+ "serde",
+ "serde_yaml",
+ "termion",
 ]
 
 [[package]]
