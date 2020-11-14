@@ -20,7 +20,8 @@ fn main() {
 
     println!("Type the characters shown after the pipe. Press <Esc> when done\n");
 
-    let mut attempter = Attempter::new(practice_set);
+    let word_handler = WordHandler::new(practice_set, 20);
+    let mut attempter = Attempter::new(word_handler);
 
     let mut attempts = 0;
     let start = Instant::now();
@@ -63,44 +64,66 @@ fn update_stats(start: Instant, typed: usize, attempts: usize) {
     );
 }
 
-struct Attempter {
-    stdout: RawTerminal<io::Stdout>,
+struct WordHandler {
     practice_set: PracticeSet,
-    chunk: VecDeque<String>,
+    words: VecDeque<VecDeque<char>>,
+    window_len: usize,
+}
+
+impl WordHandler {
+    fn new(mut practice_set: PracticeSet, window_len: usize) -> Self {
+        WordHandler {
+            words: practice_set
+                .choose_n((window_len / 2) + 1)
+                .into_iter()
+                .map(|word| word.chars().collect())
+                .collect(),
+            practice_set,
+            window_len,
+        }
+    }
+
+    // Return visible portion of words
+    fn chunk(&self) -> String {
+        self.words
+            .iter()
+            .flat_map(|word| word.iter().copied().chain(std::iter::once(' ')))
+            .take(self.window_len)
+            .collect()
+    }
+
+    // Return next character to type
+    fn next_char(&mut self) -> char {
+        match self.words[0].pop_front() {
+            Some(c) => c,
+            None => {
+                self.words.pop_front();
+                let next_word = self.practice_set.choose().chars().collect();
+                self.words.push_back(next_word);
+                ' '
+            }
+        }
+    }
+}
+
+struct Attempter {
+    word_handler: WordHandler,
+    stdout: RawTerminal<io::Stdout>,
 }
 
 impl Attempter {
-    fn new(mut practice_set: PracticeSet) -> Self {
+    fn new(word_handler: WordHandler) -> Self {
         Attempter {
-            chunk: practice_set
-                .choose_n(10)
-                .into_iter()
-                .map(|word| word.chars().rev().collect())
-                .collect(),
-            practice_set,
+            word_handler,
             stdout: io::stdout().into_raw_mode().unwrap(),
         }
     }
 
     fn run(&mut self) -> Result<usize, ()> {
-        let chunk: String = self
-            .chunk
-            .iter()
-            .flat_map(|w| w.chars().rev().chain(std::iter::once(' ')))
-            .take(20)
-            .collect();
+        let chunk = self.word_handler.chunk();
+        let goal = self.word_handler.next_char();
 
-        let goal = match self.chunk[0].pop() {
-            Some(c) => c,
-            None => {
-                self.chunk.pop_front();
-                self.chunk
-                    .push_back(self.practice_set.choose().chars().rev().collect());
-                ' '
-            }
-        };
-
-        let finger = self.practice_set.finger(goal);
+        let finger = self.word_handler.practice_set.finger(goal);
 
         let center = termion::terminal_size().unwrap().0 / 2;
 
@@ -111,6 +134,10 @@ impl Attempter {
             _ => termion::style::Reset.to_string(),
         };
 
+        let center_hand = termion::cursor::Right(
+            center - (self.word_handler.window_len as u16 - 2)
+                + (self.word_handler.window_len / 2) as u16,
+        );
         /*
             .-.                     .-.
           .-| |-.                 .-| |-.
@@ -125,7 +152,6 @@ impl Attempter {
          |       |               |       |
          |       |               |       |
            */
-
         write!(
             self.stdout,
             "\r{clear}{center}{save}|{chunk}\n\n
@@ -144,7 +170,7 @@ impl Attempter {
             clear = termion::clear::AfterCursor,
             chunk = chunk,
             center = termion::cursor::Right(center - 1),
-            center_hand = termion::cursor::Right(center - 18 + (chunk.len() / 2) as u16),
+            center_hand = center_hand,
             lp = finger_color(Finger::LeftPinky),
             lr = finger_color(Finger::LeftRing),
             lm = finger_color(Finger::LeftMiddle),
