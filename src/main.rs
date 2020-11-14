@@ -3,6 +3,7 @@ mod practice_set;
 use crate::practice_set::PracticeSet;
 use practice_set::Finger;
 use std::{
+    collections::VecDeque,
     io::{self, Write as _},
     time::Instant,
 };
@@ -65,37 +66,49 @@ fn update_stats(start: Instant, typed: usize, attempts: usize) {
 struct Attempter {
     stdout: RawTerminal<io::Stdout>,
     practice_set: PracticeSet,
-    chunk: Vec<(char, Finger)>,
+    chunk: VecDeque<String>,
 }
 
 impl Attempter {
     fn new(mut practice_set: PracticeSet) -> Self {
-        let chunk = practice_set.choose_n(20);
-
         Attempter {
-            chunk,
+            chunk: practice_set
+                .choose_n(10)
+                .into_iter()
+                .map(|word| word.chars().rev().collect())
+                .collect(),
             practice_set,
             stdout: io::stdout().into_raw_mode().unwrap(),
         }
     }
 
     fn run(&mut self) -> Result<usize, ()> {
-        let chunk: String = self.chunk.iter().map(|(c, _)| c).collect();
-        let (goal, finger) = self.chunk[0];
-        (1..chunk.len()).for_each(|i| {
-            self.chunk[i - 1] = self.chunk[i];
-        });
-        let last_index = self.chunk.len() - 1;
-        self.chunk[last_index] = self.practice_set.choose();
+        let chunk: String = self
+            .chunk
+            .iter()
+            .flat_map(|w| w.chars().rev().chain(std::iter::once(' ')))
+            .take(20)
+            .collect();
+
+        let goal = match self.chunk[0].pop() {
+            Some(c) => c,
+            None => {
+                self.chunk.pop_front();
+                self.chunk
+                    .push_back(self.practice_set.choose().chars().rev().collect());
+                ' '
+            }
+        };
+
+        let finger = self.practice_set.finger(goal);
 
         let center = termion::terminal_size().unwrap().0 / 2;
 
-        let finger_color = |displayed| {
-            if displayed == finger {
+        let finger_color = |displayed| match finger {
+            Some(finger) if displayed == finger => {
                 termion::color::Fg(termion::color::Red).to_string()
-            } else {
-                termion::style::Reset.to_string()
             }
+            _ => termion::style::Reset.to_string(),
         };
 
         /*
@@ -144,7 +157,7 @@ impl Attempter {
             save = "\x1B7",
             restore = "\x1B8",
         )
-        .unwrap();
+            .unwrap();
 
         self.stdout.flush().expect("bug: flush");
 

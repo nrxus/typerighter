@@ -17,3 +17,10 @@
     e: left_middle
     n: left_index
     b: left_index
+- name: arensito right home row
+  keys:
+    g: right_index
+    s: right_index
+    i: right_middle
+    t: right_ring
+    o: right_pinky

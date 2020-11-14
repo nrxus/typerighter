@@ -25,6 +25,7 @@ pub enum Finger {
 pub struct PracticeSet {
     keys: HashMap<char, Finger>,
     rng: ThreadRng,
+    words: Vec<&'static str>,
 }
 
 impl PracticeSet {
@@ -35,23 +36,27 @@ impl PracticeSet {
         };
 
         user_selection(sets).map(|keys| PracticeSet {
+            words: include_str!("../words.txt")
+                .lines()
+                .filter(|word| word.chars().all(|c| keys.contains_key(&c)))
+                .collect(),
             keys,
             rng: ThreadRng::default(),
         })
     }
 
-    pub fn choose(&mut self) -> (char, Finger) {
-        assert!(self.keys.len() > 0);
+    pub fn choose(&mut self) -> &'static str {
+        assert!(self.words.len() > 0);
 
-        self.keys
-            .iter()
-            .map(|(&c, &f)| (c, f))
-            .choose(&mut self.rng)
-            .unwrap()
+        self.words.iter().choose(&mut self.rng).unwrap()
     }
 
-    pub fn choose_n(&mut self, n: usize) -> Vec<(char, Finger)> {
+    pub fn choose_n(&mut self, n: usize) -> Vec<&'static str> {
         (0..n).map(|_| self.choose()).collect()
+    }
+
+    pub fn finger(&self, c: char) -> Option<Finger> {
+        self.keys.get(&c).copied()
     }
 }
 
