@@ -1,7 +1,7 @@
+mod hand;
 mod practice_set;
 
-use crate::practice_set::PracticeSet;
-use practice_set::Finger;
+use crate::{hand::Hand, practice_set::PracticeSet};
 use std::{
     collections::VecDeque,
     io::{self, Write as _},
@@ -109,13 +109,22 @@ impl WordHandler {
 struct Attempter {
     word_handler: WordHandler,
     stdout: RawTerminal<io::Stdout>,
+    hand: Hand,
+    cursor_pos: u16,
 }
 
 impl Attempter {
     fn new(word_handler: WordHandler) -> Self {
+        let cursor_pos = termion::terminal_size().unwrap().0 / 2;
+
         Attempter {
-            word_handler,
+            hand: Hand::new(
+                cursor_pos - (word_handler.window_len as u16 - 2)
+                    + (word_handler.window_len / 2) as u16,
+            ),
             stdout: io::stdout().into_raw_mode().unwrap(),
+            cursor_pos,
+            word_handler,
         }
     }
 
@@ -124,66 +133,19 @@ impl Attempter {
         let goal = self.word_handler.next_char();
 
         let finger = self.word_handler.practice_set.finger(goal);
+        self.hand.select(finger);
 
-        let center = termion::terminal_size().unwrap().0 / 2;
-
-        let finger_color = |displayed| match finger {
-            Some(finger) if displayed == finger => {
-                termion::color::Fg(termion::color::Red).to_string()
-            }
-            _ => termion::style::Reset.to_string(),
-        };
-
-        let center_hand = termion::cursor::Right(
-            center - (self.word_handler.window_len as u16 - 2)
-                + (self.word_handler.window_len / 2) as u16,
-        );
-        /*
-            .-.                     .-.
-          .-| |-.                 .-| |-.
-          | | | |                 | | | |
-        .-| | | |                 | | | |-.
-        | | | | |                 | | | | |
-        | | | | |-.             .-| | | | |
-        | '     | |             | |     ` |
-        |       | |             | |       |
-        |         |             |         |
-        \         /             \         /
-         |       |               |       |
-         |       |               |       |
-           */
         write!(
             self.stdout,
-            "\r{clear}{center}{save}|{chunk}\n\n
-\r{center_hand}{xx}  {xx}  {lm}.-{lm}.{xx}                   {xx}  {rm}.-{rm}.{xx}
-\r{center_hand}{xx}  {lr}.-{lm}| {lm}|{li}-.                 {ri}.-{rm}| {rm}|{rr}-{rr}.{xx}
-\r{center_hand}{xx}  {lr}| {lr}| {li}|{li} |                 {ri}| {ri}| {rr}|{rr} {rr}|{xx}
-\r{center_hand}{lp}.-{xx}| {xx}| {xx}|{xx} |                 {xx}| {xx}| {xx}|{xx} {xx}|{rp}-.
-\r{center_hand}{lp}| {lp}| {xx}| {xx}|{xx} |                 {xx}| {xx}| {xx}|{xx} {rp}|{rp} |
-\r{center_hand}{xx}| {xx}| {xx}| {xx}|{xx} |-.             .-{xx}| {xx}| {xx}|{xx} {xx}|{xx} |
-\r{center_hand}{xx}| {xx}' {xx}  {xx} {xx} | |             | {xx}| {xx}  {xx} {xx} {xx}`{xx} |
-\r{center_hand}{xx}| {xx}  {xx}  {xx} {xx} | |             | {xx}| {xx}  {xx} {xx} {xx} {xx} |
-\r{center_hand}{xx}| {xx}  {xx}  {xx} {xx}   |             | {xx}  {xx}  {xx} {xx} {xx} {xx} |
-\r{center_hand}{xx}\\{xx}  {xx}  {xx} {xx}    /             \\{xx} {xx}  {xx} {xx} {xx} {xx}   /
-\r{center_hand}{xx} |{xx}  {xx}  {xx} {xx}  |               |{xx}  {xx}  {xx} {xx} {xx} {xx}|
-\r{center_hand}{xx} |{xx}  {xx}  {xx} {xx}  |               |{xx}  {xx}  {xx} {xx} {xx} {xx}|{restore}",
+            "\r{clear}{right}{save}|{chunk}\n\n{hand}{restore}",
             clear = termion::clear::AfterCursor,
             chunk = chunk,
-            center = termion::cursor::Right(center - 1),
-            center_hand = center_hand,
-            lp = finger_color(Finger::LeftPinky),
-            lr = finger_color(Finger::LeftRing),
-            lm = finger_color(Finger::LeftMiddle),
-            li = finger_color(Finger::LeftIndex),
-            ri = finger_color(Finger::RightIndex),
-            rm = finger_color(Finger::RightMiddle),
-            rr = finger_color(Finger::RightRing),
-            rp = finger_color(Finger::RightPinky),
-            xx = termion::style::Reset,
+            right = termion::cursor::Right(self.cursor_pos),
+            hand = self.hand,
             save = "\x1B7",
             restore = "\x1B8",
         )
-            .unwrap();
+        .unwrap();
 
         self.stdout.flush().expect("bug: flush");
 
