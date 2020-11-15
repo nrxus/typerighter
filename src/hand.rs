@@ -1,15 +1,17 @@
-use crate::practice_set::Finger;
+use crate::{practice_set::Finger, align};
 use std::fmt;
 
 pub struct Hand {
-    aligner: Realign,
+    aligner: align::Left,
     selected: Option<Finger>,
 }
 
 impl Hand {
-    pub fn new(start_col: u16) -> Self {
+    pub fn new(center: u16) -> Self {
+        let hand_cols = 35;
+
         Hand {
-            aligner: Realign(start_col),
+            aligner: align::Left(center - hand_cols / 2),
             selected: None,
         }
     }
@@ -68,13 +70,5 @@ impl fmt::Display for Hand {
             xx = termion::style::Reset,
             align = self.aligner,
         )
-    }
-}
-
-struct Realign(u16);
-
-impl fmt::Display for Realign {
-    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        write!(f, "\r{}", termion::cursor::Right(self.0))
     }
 }
