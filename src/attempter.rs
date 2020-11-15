@@ -1,67 +1,31 @@
-use crate::{align, chunk::Chunk, hand::Hand};
-use std::io::{self, Write as _};
-use termion::{
-    event::Key,
-    input::TermRead as _,
-    raw::{IntoRawMode as _, RawTerminal},
-};
+use std::io;
+use termion::{event::Key, input::TermRead as _, raw::IntoRawMode as _, raw::RawTerminal};
 
 pub struct Attempter {
-    chunk: Chunk,
-    stdout: RawTerminal<io::Stdout>,
-    hand: Hand,
-    aligner: align::Left,
+    _raw: RawTerminal<io::Stdout>,
 }
 
 impl Attempter {
-    pub fn new(chunk: Chunk) -> Self {
-        let center = (termion::terminal_size().unwrap().0) / 2;
-
+    pub fn new() -> Self {
         Attempter {
-            hand: Hand::new(center),
-            stdout: io::stdout().into_raw_mode().unwrap(),
-            aligner: align::Left(center - 1),
-            chunk,
+            _raw: io::stdout().into_raw_mode().unwrap(),
         }
     }
 
-    pub fn run(&mut self) -> Result<usize, ()> {
-        let (goal, finger) = self.chunk.next();
-        self.hand.select(finger);
-
-        write!(
-            self.stdout,
-            "{align}|{goal}{chunk}\n\n{hand}",
-            chunk = self.chunk,
-            align = self.aligner,
-            hand = self.hand,
-            goal = goal,
-        )
-        .unwrap();
-
-        self.stdout.flush().expect("bug: flush");
-
+    pub fn attempt(&self, goal: char) -> State {
         for (attempts, k) in io::stdin().keys().enumerate() {
             match k.unwrap() {
-                Key::Esc => {
-                    write!(
-                        self.stdout,
-                        "{clear}\r",
-                        clear = termion::clear::AfterCursor,
-                    )
-                    .expect("bug");
-                    self.stdout.flush().expect("bug: flush");
-                    return Result::Err(());
-                }
-                Key::Char(k) if k == goal => {
-                    write!(self.stdout, "{}", termion::cursor::Up(1)).expect("bug");
-
-                    return Result::Ok(attempts + 1);
-                }
+                Key::Esc | Key::Ctrl('c') => return State::Exit,
+                Key::Char(k) if k == goal => return State::Continue(attempts + 1),
                 _ => {}
             }
         }
 
         unreachable!("bug: reached outside of key-event loop")
     }
+}
+
+pub enum State {
+    Exit,
+    Continue(usize),
 }

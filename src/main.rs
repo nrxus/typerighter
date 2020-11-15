@@ -3,9 +3,11 @@ mod attempter;
 mod chunk;
 mod hand;
 mod practice_set;
+mod stats;
 
-use crate::{attempter::Attempter, chunk::Chunk, practice_set::PracticeSet};
-use std::{fmt, time::Instant};
+use std::io::{self, Write};
+
+use crate::{attempter::Attempter, chunk::Chunk, hand::Hand, practice_set::PracticeSet, stats::Stats};
 
 fn main() {
     print!(
@@ -16,75 +18,55 @@ fn main() {
 
     let practice_set = PracticeSet::load().expect("failed to load practice set");
 
-    println!("Type the characters shown after the pipe. Press <Esc> when done\n");
-
-    let word_handler = Chunk::new(practice_set, 20);
-    let mut attempter = Attempter::new(word_handler);
+    let mut chunk = Chunk::new(practice_set, 20);
+    let center = (termion::terminal_size().unwrap().0) / 2;
+    let mut hand = Hand::new(center);
     let mut stats = Stats::new();
+    let aligner = align::Left(center - 1);
+    let attempter = Attempter::new();
 
-    println!(
-        "{save}{hide}\r{bold}WPM{li}: ----\t{bold}Accuracy{li}: ----",
-        bold = termion::style::Bold,
-        li = termion::style::Reset,
+    print!(
+        "Type the characters shown after the pipe. Press <Esc> when done\n\n\r{hide}{save}",
         hide = termion::cursor::Hide,
-        save = "\x1B7",
+        save = "\x1B7"
     );
 
-    loop {
-        match attempter.run() {
-            Result::Ok(a) => stats.add_attempts(a),
-            Result::Err(_) => break,
-        }
+    io::stdout().flush().unwrap();
 
+    loop {
         println!(
-            "{restore}{clear}{stats}",
-            restore = "\x1B8",
+            "{stats}\n{align}|{chunk}\n",
             stats = stats,
+            align = aligner,
+            chunk = chunk,
+        );
+
+        let (goal, finger) = chunk.next();
+
+        hand.select(finger);
+        println!("{}", hand);
+
+        let state = attempter.attempt(goal);
+
+        print!(
+            "{restore}{clear}",
+            restore = "\x1B8",
             clear = termion::clear::AfterCursor
         );
-    }
 
-    println!("{show}", show = termion::cursor::Show);
-}
-
-struct Stats {
-    start: Instant,
-    typed: usize,
-    attempts: usize,
-}
-
-impl Stats {
-    fn new() -> Self {
-        Stats {
-            start: Instant::now(),
-            typed: 0,
-            attempts: 0,
+        match state {
+            attempter::State::Exit => {
+                break;
+            }
+            attempter::State::Continue(a) => {
+                stats.add_attempts(a);
+            }
         }
     }
 
-    fn add_attempts(&mut self, attempts: usize) {
-        self.typed += 1;
-        self.attempts += attempts;
-    }
-}
-
-impl fmt::Display for Stats {
-    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        let typed = self.typed as f64;
-        let attempts = self.attempts as f64;
-
-        let duration = Instant::now() - self.start;
-        let minutes = (duration.as_millis() as f64) / (60_f64 * 1000_f64);
-        let wpm = (typed / 5_f64) / minutes;
-        let accuracy = (typed * 100_f64) / attempts;
-
-        write!(
-            f,
-            "{bold}WPM{reset}: {wpm:.2}\t{bold}Accuracy{reset}: {accuracy:.2}%",
-            bold = termion::style::Bold,
-            reset = termion::style::Reset,
-            wpm = wpm,
-            accuracy = accuracy
-        )
-    }
+    println!(
+        "\r{stats}{show}",
+        stats = stats,
+        show = termion::cursor::Show
+    );
 }
