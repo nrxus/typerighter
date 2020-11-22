@@ -3,6 +3,7 @@ mod attempter;
 mod chunk;
 mod hand;
 mod practice_set;
+mod typed_chars;
 
 use std::{
     io::{self, Write},
@@ -16,11 +17,12 @@ use crate::{
     chunk::Chunk,
     hand::Hand,
     practice_set::{Finger, PracticeData, PracticeSet},
+    typed_chars::TypedChars,
 };
 
 enum Event {
     Elapsed(Duration),
-    Typed(usize),
+    Typed(usize, char),
     Updated {
         finger: Option<Finger>,
         words: String,
@@ -31,6 +33,7 @@ enum Event {
 const CHARS_PER_WORD: f64 = 5_f64;
 const SECS_PER_MINUTE: f64 = 60_f64;
 const PRACTICE_TIME: Duration = Duration::from_secs(120);
+const WINDOW_LEN: usize = 20;
 
 fn main() {
     print!(
@@ -43,10 +46,11 @@ fn main() {
 
     let (tx, rx) = std::sync::mpsc::channel::<Event>();
     let timer_sender = tx.clone();
+    let mut typed_chars = TypedChars::new(WINDOW_LEN);
 
     thread::spawn(move || {
         let practice_set = PracticeSet::new(practice_data);
-        let mut chunk = Chunk::new(practice_set, 20);
+        let mut chunk = Chunk::new(practice_set, WINDOW_LEN);
         let attempter = Attempter::new();
 
         loop {
@@ -56,7 +60,9 @@ fn main() {
 
             match attempter.attempt(goal) {
                 attempter::State::Exit => break,
-                attempter::State::Continue(attempts) => tx.send(Event::Typed(attempts)).unwrap(),
+                attempter::State::Continue(attempts) => {
+                    tx.send(Event::Typed(attempts, goal)).unwrap()
+                }
             };
         }
 
@@ -89,7 +95,6 @@ fn main() {
 
     io::stdout().flush().unwrap();
 
-    let align = align::Left(width / 2);
     for event in rx.into_iter() {
         match event {
             Event::Ended => break,
@@ -104,9 +109,10 @@ fn main() {
                 words = w;
                 hand.select(finger)
             }
-            Event::Typed(a) => {
+            Event::Typed(new_attempts, c) => {
+                typed_chars.add(c);
                 typed += 1;
-                attempts += a;
+                attempts += new_attempts;
             }
         }
 
@@ -116,15 +122,17 @@ fn main() {
             seconds = remaining.as_secs_f64() % 60_f64
         );
 
+        let align = align::Left((width / 2) - WINDOW_LEN as u16);
         println!(
             "{restore}{clear} {timer}
 
-{align}|{words}
+{align}{typed_chars}|{words}
 
 {hand}",
             restore = "\x1B8",
             clear = termion::clear::AfterCursor,
             align = align,
+            typed_chars = typed_chars,
             words = words,
             hand = hand,
             timer = timer,
@@ -150,5 +158,5 @@ fn main() {
         );
     }
 
-    print!("{show}", show = termion::cursor::Show);
+    print!("{show}\n\r", show = termion::cursor::Show);
 }
