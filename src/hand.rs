@@ -1,17 +1,18 @@
 use crate::{practice_set::Finger, align};
 use std::fmt;
 
+#[derive(Debug)]
 pub struct Hand {
     aligner: align::Left,
     selected: Option<Finger>,
 }
 
 impl Hand {
-    pub fn new(center: u16) -> Self {
-        let hand_cols = 35;
+    pub const WIDTH: u16 = 35;
 
+    pub fn new(aligner: align::Left) -> Self {
         Hand {
-            aligner: align::Left(center - hand_cols / 2),
+            aligner,
             selected: None,
         }
     }

@@ -28,21 +28,36 @@ pub struct PracticeSet {
     words: Vec<&'static str>,
 }
 
-impl PracticeSet {
+#[derive(Debug)]
+pub struct PracticeData {
+    keys: HashMap<char, Finger>,
+    words: Vec<&'static str>,
+}
+
+impl PracticeData {
     pub fn load() -> Result<Self, Box<dyn Error>> {
         let sets: Vec<KeySet> = {
             let keysets = File::open("./practice_sets.yml")?;
             serde_yaml::from_reader(io::BufReader::new(keysets))?
         };
 
-        user_selection(sets).map(|keys| PracticeSet {
+        user_selection(sets).map(|keys| PracticeData {
             words: include_str!("../words.txt")
                 .lines()
                 .filter(|word| word.chars().all(|c| keys.contains_key(&c)))
                 .collect(),
             keys,
-            rng: ThreadRng::default(),
         })
+    }
+}
+
+impl PracticeSet {
+    pub fn new(data: PracticeData) -> Self {
+        PracticeSet {
+            rng: ThreadRng::default(),
+            keys: data.keys,
+            words: data.words,
+        }
     }
 
     pub fn choose(&mut self) -> &'static str {

@@ -1,5 +1,6 @@
 use std::fmt;
 
+#[derive(Debug)]
 pub struct Left(pub u16);
 
 impl fmt::Display for Left {
